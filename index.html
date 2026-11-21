@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AETHER // Sintetizador Camaleón de Datos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #090d16;
+      --bg-secondary: #111827;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.35);
+      --text-main: #f8fafc;
+    }
+
+    body {
+      background: radial-gradient(circle at top right, var(--bg-secondary), var(--bg-primary));
+      color: var(--text-main);
+      transition: background 1.2s ease, color 0.8s ease;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px var(--accent-glow);
+      transition: box-shadow 1s ease, border-color 1s ease;
+    }
+
+    .accent-btn {
+      background-color: var(--accent);
+      color: #050811;
+      box-shadow: 0 0 20px var(--accent-glow);
+      transition: all 0.4s ease;
+    }
+
+    .accent-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+    }
+
+    .accent-text {
+      color: var(--accent);
+      transition: color 0.8s ease;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-between p-4 md:p-8">
+
+  <!-- Header -->
+  <header class="w-full max-w-4xl flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div>
+      <span class="text-xs uppercase tracking-widest opacity-70">Telemetría Sonora & Visual en Vivo</span>
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight">AETHER <span class="accent-text">// CAMALEÓN</span></h1>
+    </div>
+
+    <!-- Selector de Escenario / Ciudad -->
+    <div class="flex items-center gap-2">
+      <select id="citySelector" class="bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm focus:outline-none">
+        <option value="25.56,-108.46,Guasave">Guasave, MX (Local)</option>
+        <option value="35.67,139.65,Tokio">Tokio, JP</option>
+        <option value="64.14,-21.94,Reikiavik">Reikiavik, IS (Frío)</option>
+        <option value="25.20,55.27,Dubái">Dubái, AE (Desierto)</option>
+        <option value="-33.44,-70.66,Santiago">Santiago, CL</option>
+      </select>
+      <button id="toggleInspectorBtn" class="px-3 py-2 text-xs rounded-lg border border-white/20 hover:bg-white/10">
+        { } JSON
+      </button>
+    </div>
+  </header>
+
+  <!-- Panel Principal -->
+  <main class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6 my-auto">
+
+    <!-- Visualizador de Onda + Control de Audio -->
+    <section class="glass-panel rounded-2xl p-6 md:col-span-2 flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 id="locationTitle" class="text-xl font-semibold">Cargando entorno...</h2>
+          <p id="atmosphereDesc" class="text-xs opacity-75">Sincronizando atmósfera y órbita terrestre</p>
+        </div>
+        <span id="statusBadge" class="px-3 py-1 rounded-full text-xs font-medium bg-white/10">
+          EN ESPERA
+        </span>
+      </div>
+
+      <!-- Canvas de Visualización Sonora -->
+      <div class="relative w-full h-48 rounded-xl overflow-hidden bg-black/30 border border-white/10 my-2">
+        <canvas id="waveCanvas" class="w-full h-full"></canvas>
+        <div id="overlayPrompt" class="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-xs">
+          <button id="audioToggleBtn" class="accent-btn font-bold px-6 py-3 rounded-full text-sm tracking-wide cursor-pointer">
+            ▶ SINTONIZAR FRECUENCIA
+          </button>
+        </div>
+      </div>
+
+      <!-- Métricas en vivo -->
+      <div class="grid grid-cols-3 gap-3 mt-4 text-center">
+        <div class="bg-black/25 rounded-xl p-3">
+          <p class="text-[11px] uppercase opacity-60">Temperatura</p>
+          <p id="tempVal" class="text-lg font-bold accent-text">-- °C</p>
+        </div>
+        <div class="bg-black/25 rounded-xl p-3">
+          <p class="text-[11px] uppercase opacity-60">Viento (Tempo)</p>
+          <p id="windVal" class="text-lg font-bold accent-text">-- km/h</p>
+        </div>
+        <div class="bg-black/25 rounded-xl p-3">
+          <p class="text-[11px] uppercase opacity-60">Altitud ISS</p>
+          <p id="issVal" class="text-lg font-bold accent-text">-- km</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel QR Dinámico -->
+    <aside class="glass-panel rounded-2xl p-6 flex flex-col items-center justify-between text-center">
+      <div>
+        <h3 class="font-semibold text-base">Portal Móvil QR</h3>
+        <p class="text-xs opacity-70 mt-1">Escanea para abrir esta misma atmósfera en otro dispositivo</p>
+      </div>
+
+      <div id="qrcode" class="bg-white p-3 rounded-xl my-4 shadow-lg"></div>
+
+      <p id="qrUrlLabel" class="text-[10px] opacity-60 break-all max-w-full"></p>
+    </aside>
+
+  </main>
+
+  <!-- Inspector Técnico de API (Ocultable para la demo en clase) -->
+  <section id="jsonInspector" class="hidden w-full max-w-4xl mt-6 glass-panel rounded-2xl p-4">
+    <div class="flex justify-between items-center mb-2">
+      <span class="text-xs font-mono accent-text">RESPUESTA CRUDA DE APIS (OPEN-METEO + ISS TELEMETRY)</span>
+      <span class="text-[11px] opacity-60">Mapeo directo a CSS Variables & Web Audio Hz</span>
+    </div>
+    <pre id="rawJsonOutput" class="text-xs font-mono bg-black/40 p-3 rounded-lg overflow-x-auto max-h-48 text-emerald-300"></pre>
+  </section>
+
+  <footer class="w-full max-w-4xl text-center text-xs opacity-50 mt-6">
+    Desplegado en la nube • Datos en tiempo real transformados en color y sonido
+  </footer>
+
+  <script>
+    // Escala pentatónica en Hz (garantiza que cualquier dato suene armónico)
+    const PENTATONIC_SCALE = [196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33];
+
+    let audioCtx = null;
+    let analyser = null;
+    let isPlaying = false;
+    let synthInterval = null;
+    let currentData = { temp: 24, wind: 10, isDay: 1, issAlt: 420, issVel: 27600 };
+
+    const canvas = document.getElementById('waveCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Leer parámetros de URL si se abrió desde un QR compartido
+    function initFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const lat = params.get('lat');
+      const lon = params.get('lon');
+      const city = params.get('city');
+      if (lat && lon && city) {
+        const selector = document.getElementById('citySelector');
+        const customVal = `${lat},${lon},${city}`;
+        if (![...selector.options].some(o => o.value === customVal)) {
+          const opt = new Option(`${city} (QR)`, customVal);
+          selector.add(opt);
+        }
+        selector.value = customVal;
+      }
+    }
+
+    // Generar código QR dinámico
+    function updateQRCode(lat, lon, city) {
+      const qrContainer = document.getElementById('qrcode');
+      qrContainer.innerHTML = '';
+      const baseUrl = window.location.origin + window.location.pathname;
+      const shareUrl = `${baseUrl}?lat=${lat}&lon=${lon}&city=${encodeURIComponent(city)}`;
+      document.getElementById('qrUrlLabel').textContent = shareUrl;
+
+      new QRCode(qrContainer, {
+        text: shareUrl,
+        width: 140,
+        height: 140,
+        colorDark: "#090d16",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    // Mutar interfaz (Modo Camaleón) según datos reales
+    function applyChameleonTheme(temp, isDay, wind) {
+      const root = document.documentElement;
+      let bg1, bg2, accent, glow, mood;
+
+      if (temp >= 30) {
+        bg1 = '#1f0c07'; bg2 = '#451a03'; accent = '#fb923c'; glow = 'rgba(251, 146, 60, 0.35)';
+        mood = 'Atmósfera Solar Cálida • Armónicos Brillantes';
+      } else if (temp <= 10) {
+        bg1 = '#04121d'; bg2 = '#0c2d48'; accent = '#38bdf8'; glow = 'rgba(56, 189, 248, 0.35)';
+        mood = 'Atmósfera Glacial • Frecuencias Cristalinas';
+      } else if (isDay === 0) {
+        bg1 = '#090514'; bg2 = '#1e1b4b'; accent = '#c084fc'; glow = 'rgba(192, 132, 252, 0.35)';
+        mood = 'Modo Nocturno Orbital • Sintetizador Profundo';
+      } else {
+        bg1 = '#051914'; bg2 = '#064e3b'; accent = '#34d399'; glow = 'rgba(52, 211, 153, 0.35)';
+        mood = 'Equilibrio Templado • Onda Orgánica';
+      }
+
+      root.style.setProperty('--bg-primary', bg1);
+      root.style.setProperty('--bg-secondary', bg2);
+      root.style.setProperty('--accent', accent);
+      root.style.setProperty('--accent-glow', glow);
+      document.getElementById('atmosphereDesc').textContent = `${mood} (Viento: ${wind} km/h)`;
+    }
+
+    // Consumir APIs en tiempo real
+    async function fetchTelemetry(lat, lon, city) {
+      document.getElementById('locationTitle').textContent = city;
+      updateQRCode(lat, lon, city);
+
+      try {
+        const [weatherRes, issRes] = await Promise.all([
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`),
+          fetch('https://api.wheretheiss.at/v1/satellites/25544')
+        ]);
+
+        const weatherJson = await weatherRes.json();
+        const issJson = await issRes.json();
+
+        currentData = {
+          temp: weatherJson.current_weather.temperature,
+          wind: weatherJson.current_weather.windspeed,
+          isDay: weatherJson.current_weather.is_day,
+          issAlt: Math.round(issJson.altitude),
+          issVel: Math.round(issJson.velocity)
+        };
+
+        document.getElementById('rawJsonOutput').textContent = JSON.stringify({
+          ciudad: city,
+          clima_api: weatherJson.current_weather,
+          estacion_espacial_api: {
+            altitud_km: issJson.altitude,
+            velocidad_kmh: issJson.velocity,
+            visibilidad: issJson.visibility
+          }
+        }, null, 2);
+
+      } catch (err) {
+        // Fallback elegante si falla la red
+        currentData = { temp: 22, wind: 14, isDay: 1, issAlt: 418, issVel: 27580 };
+        document.getElementById('rawJsonOutput').textContent = JSON.stringify({ modo: "respaldo_local", datos: currentData }, null, 2);
+      }
+
+      document.getElementById('tempVal').textContent = `${currentData.temp} °C`;
+      document.getElementById('windVal').textContent = `${currentData.wind} km/h`;
+      document.getElementById('issVal').textContent = `${currentData.issAlt} km`;
+
+      applyChameleonTheme(currentData.temp, currentData.isDay, currentData.wind);
+      if (isPlaying) restartSynthLoop();
+    }
+
+    // Motor de Síntesis Sonora (Web Audio API)
+    function playNoteFromData() {
+      if (!audioCtx || !isPlaying) return;
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      // Mapear temperatura y altitud ISS a una nota de la escala
+      const seed = Math.abs(Math.round(currentData.temp * 3 + currentData.issAlt));
+      const freq = PENTATONIC_SCALE[seed % PENTATONIC_SCALE.length];
+
+      osc.type = currentData.temp > 25 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      // Envolvente suave tipo pad ambiental
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+
+      osc.connect(gain);
+      gain.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 1.5);
+    }
+
+    function restartSynthLoop() {
+      clearInterval(synthInterval);
+      // Mayor velocidad de viento = ritmo más rápido
+      const intervalMs = Math.max(350, 1400 - currentData.wind * 25);
+      playNoteFromData();
+      synthInterval = setInterval(playNoteFromData, intervalMs);
+    }
+
+    function startAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      isPlaying = true;
+      document.getElementById('overlayPrompt').classList.add('hidden');
+      document.getElementById('statusBadge').textContent = 'TRANSMITIENDO';
+      restartSynthLoop();
+      drawVisualizer();
+    }
+
+    // Visualizador de ondas en tiempo real
+    function drawVisualizer() {
+      requestAnimationFrame(drawVisualizer);
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+
+      if (!analyser || !isPlaying) return;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteTimeDomainData(dataArray);
+
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = accentColor;
+      ctx.beginPath();
+
+      const sliceWidth = canvas.width / bufferLength;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = (v * canvas.height) / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
+
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+    }
+
+    // Eventos
+    document.getElementById('audioToggleBtn').addEventListener('click', startAudio);
+
+    document.getElementById('citySelector').addEventListener('change', (e) => {
+      const [lat, lon, city] = e.target.value.split(',');
+      fetchTelemetry(lat, lon, city);
+    });
+
+    document.getElementById('toggleInspectorBtn').addEventListener('click', () => {
+      document.getElementById('jsonInspector').classList.toggle('hidden');
+    });
+
+    // Inicialización
+    initFromURL();
+    const [initLat, initLon, initCity] = document.getElementById('citySelector').value.split(',');
+    fetchTelemetry(initLat, initLon, initCity);
+  </script>
+</body>
+</html>
